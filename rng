@@ -1,3 +1,9 @@
+--[[
+    Gender RNG Auto Farm – Teleport cooldown: 180s
+    5x area: each potion twice
+    2x area: each potion once
+]]
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -19,8 +25,8 @@ local Settings = {
     RollDelay = 0.1,
 }
 
-local lastPotionUseTime = 0
-local POTION_COOLDOWN = 300
+local lastTeleportTime = 0
+local TELEPORT_COOLDOWN = 180   -- 3 minutes
 
 local function SafeFire(remote, data)
     pcall(function()
@@ -229,7 +235,7 @@ local function CreateGUI()
     end)
     y = y + 40
 
-    -- LUCK AREA with area‑based potion counts
+    -- LUCK AREA with teleport cooldown and potion usage per area
     CreateToggle(scroll, "Collect Luck Areas (Stay)", y, function(state)
         Settings.AutoLuck = state
         if state then
@@ -248,27 +254,31 @@ local function CreateGUI()
                                 local distance = (hrp.Position - touchPart.Position).Magnitude
                                 local currentTime = tick()
 
-                                if distance > 5 and (currentTime - lastPotionUseTime) >= POTION_COOLDOWN then
+                                if distance > 5 and (currentTime - lastTeleportTime) >= TELEPORT_COOLDOWN then
                                     -- Teleport
                                     hrp.CFrame = touchPart.CFrame + Vector3.new(0, 2, 0)
 
-                                    -- Base potions: always use 2x once
-                                    SafeFire(Remote, "\v\vLuck Potion")  -- 2x potion
-
-                                    -- Now use 5x potion based on area
+                                    -- Determine how many times to use each potion
+                                    local times = 1
                                     if targetArea.Name == "5" then
-                                        -- 5x area: use 5x twice
-                                        wait(0.15)
-                                        SafeFire(Remote, "\v\017Ultra Luck Potion")
-                                        wait(0.15)
-                                        SafeFire(Remote, "\v\017Ultra Luck Potion")
-                                    elseif targetArea.Name == "2" then
-                                        -- 2x area: use 5x once
-                                        wait(0.15)
-                                        SafeFire(Remote, "\v\017Ultra Luck Potion")
+                                        times = 2
+                                    end
+                                    -- For area 2, times = 1
+
+                                    -- Use each potion the appropriate number of times
+                                    for i = 1, times do
+                                        SafeFire(Remote, "\v\vLuck Potion")          -- 2x luck
+                                        wait(0.1)
+                                        SafeFire(Remote, "\v\017Ultra Luck Potion")  -- 5x luck
+                                        wait(0.1)
+                                        SafeFire(Remote, "\v\vCash Potion")         -- cash
+                                        wait(0.1)
+                                        SafeFire(Remote, "\v\017Roll Speed Potion") -- roll speed
+                                        if i < times then wait(0.1) end
                                     end
 
-                                    lastPotionUseTime = currentTime
+                                    -- Update teleport cooldown (also acts as potion cooldown)
+                                    lastTeleportTime = currentTime
                                 end
                             else
                                 -- fallback firetouchinterest
@@ -284,7 +294,7 @@ local function CreateGUI()
     end)
     y = y + 40
 
-    -- Buy Potions
+    -- Buy Potions (unchanged)
     local buyData = {
         {"Buy Luck Potion", "\n\vLuck Potion"},
         {"Buy Ultra Luck", "\n\017Ultra Luck Potion"},
@@ -308,7 +318,7 @@ local function CreateGUI()
         y = y + 40
     end
 
-    -- Use Potions
+    -- Use Potions (unchanged)
     local useData = {
         {"Use Luck Potion (2x)", "\v\vLuck Potion", 5},
         {"Use Ultra Luck (5x)", "\v\017Ultra Luck Potion", 15},
