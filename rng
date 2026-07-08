@@ -1,7 +1,3 @@
---[[
-    Gender RNG Auto Farm – Silent (no console prints)
-]]
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -9,7 +5,6 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local Remote = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Packet"):WaitForChild("RemoteEvent")
 
--- Settings
 local Settings = {
     AutoRoll = false,
     AutoLuck = false,
@@ -53,7 +48,6 @@ local function CreateGUI()
     main.BorderSizePixel = 0
     main.Parent = gui
 
-    -- Title bar
     local titleBar = Instance.new("Frame")
     titleBar.Size = UDim2.new(1, 0, 0, 30)
     titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
@@ -116,7 +110,6 @@ local function CreateGUI()
         end
     end)
 
-    -- Keybind G
     local keybindConnection
     keybindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
@@ -131,7 +124,6 @@ local function CreateGUI()
         end
     end)
 
-    -- Helper toggles
     local toggles = {}
     local function CreateToggle(parent, labelText, yPos, callback)
         local frame = Instance.new("Frame")
@@ -174,7 +166,6 @@ local function CreateGUI()
 
     local y = 10
 
-    -- Auto Roll
     CreateToggle(scroll, "Auto Roll", y, function(state)
         Settings.AutoRoll = state
         if state then
@@ -189,7 +180,6 @@ local function CreateGUI()
     end)
     y = y + 40
 
-    -- Delay slider
     local delayFrame = Instance.new("Frame")
     delayFrame.Size = UDim2.new(1, -20, 0, 30)
     delayFrame.Position = UDim2.new(0, 10, 0, y)
@@ -239,7 +229,7 @@ local function CreateGUI()
     end)
     y = y + 40
 
-    -- Luck Area with cooldown
+    -- LUCK AREA with area‑based potion counts
     CreateToggle(scroll, "Collect Luck Areas (Stay)", y, function(state)
         Settings.AutoLuck = state
         if state then
@@ -259,13 +249,29 @@ local function CreateGUI()
                                 local currentTime = tick()
 
                                 if distance > 5 and (currentTime - lastPotionUseTime) >= POTION_COOLDOWN then
+                                    -- Teleport
                                     hrp.CFrame = touchPart.CFrame + Vector3.new(0, 2, 0)
-                                    SafeFire(Remote, "\v\vLuck Potion")
-                                    wait(0.15)
-                                    SafeFire(Remote, "\v\017Ultra Luck Potion")
+
+                                    -- Base potions: always use 2x once
+                                    SafeFire(Remote, "\v\vLuck Potion")  -- 2x potion
+
+                                    -- Now use 5x potion based on area
+                                    if targetArea.Name == "5" then
+                                        -- 5x area: use 5x twice
+                                        wait(0.15)
+                                        SafeFire(Remote, "\v\017Ultra Luck Potion")
+                                        wait(0.15)
+                                        SafeFire(Remote, "\v\017Ultra Luck Potion")
+                                    elseif targetArea.Name == "2" then
+                                        -- 2x area: use 5x once
+                                        wait(0.15)
+                                        SafeFire(Remote, "\v\017Ultra Luck Potion")
+                                    end
+
                                     lastPotionUseTime = currentTime
                                 end
                             else
+                                -- fallback firetouchinterest
                                 firetouchinterest(hrp, targetArea, 0)
                                 wait(0.2)
                                 firetouchinterest(hrp, targetArea, 1)
