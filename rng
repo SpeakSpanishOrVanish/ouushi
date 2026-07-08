@@ -20,7 +20,7 @@ local Settings = {
 }
 
 local lastPotionUseTime = 0
-local POTION_COOLDOWN = 60
+local POTION_COOLDOWN = 300
 
 local function SafeFire(remote, data)
     pcall(function()
