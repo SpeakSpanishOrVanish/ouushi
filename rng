@@ -1,3 +1,7 @@
+--[[
+    Gender RNG Auto Farm – Silent (no console prints)
+]]
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -20,22 +24,18 @@ local Settings = {
     RollDelay = 0.1,
 }
 
--- Safe remote fire (with fallback)
+local lastPotionUseTime = 0
+local POTION_COOLDOWN = 60
+
 local function SafeFire(remote, data)
-    local success, err = pcall(function()
+    pcall(function()
         if type(data) == "string" then
-            -- Try buffer.fromstring; if fails, send string
             local buf = buffer.fromstring(data)
             remote:FireServer(buf)
         else
             remote:FireServer(data)
         end
     end)
-    if not success then
-        pcall(function()
-            remote:FireServer(data) -- fallback
-        end)
-    end
 end
 
 -- ========== GUI CREATION ==========
@@ -43,10 +43,9 @@ local function CreateGUI()
     local gui = Instance.new("ScreenGui")
     gui.Name = "GenderRNG_AF"
     gui.ResetOnSpawn = false
-    gui.Enabled = true   -- ✅ CORRECT property
+    gui.Enabled = true
     gui.Parent = game:GetService("CoreGui")
 
-    -- Main frame
     local main = Instance.new("Frame")
     main.Size = UDim2.new(0, 400, 0, 450)
     main.Position = UDim2.new(0.5, -200, 0.5, -225)
@@ -71,7 +70,6 @@ local function CreateGUI()
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = titleBar
 
-    -- Minimize button
     local minBtn = Instance.new("TextButton")
     minBtn.Size = UDim2.new(0, 30, 0, 30)
     minBtn.Position = UDim2.new(1, -65, 0, 0)
@@ -82,7 +80,6 @@ local function CreateGUI()
     minBtn.TextSize = 20
     minBtn.Parent = titleBar
 
-    -- Close button
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, 30, 0, 30)
     closeBtn.Position = UDim2.new(1, -32, 0, 0)
@@ -94,7 +91,6 @@ local function CreateGUI()
     closeBtn.Parent = titleBar
     closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
-    -- Scrolling frame
     local scroll = Instance.new("ScrollingFrame")
     scroll.Size = UDim2.new(1, 0, 1, -30)
     scroll.Position = UDim2.new(0, 0, 0, 30)
@@ -120,13 +116,12 @@ local function CreateGUI()
         end
     end)
 
-    -- Keybind: G toggles GUI Enabled
+    -- Keybind G
     local keybindConnection
     keybindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.KeyCode == Enum.KeyCode.G then
             gui.Enabled = not gui.Enabled
-            print("[GUI] Toggled:", gui.Enabled)
         end
     end)
 
@@ -136,7 +131,7 @@ local function CreateGUI()
         end
     end)
 
-    -- Helper: create toggle
+    -- Helper toggles
     local toggles = {}
     local function CreateToggle(parent, labelText, yPos, callback)
         local frame = Instance.new("Frame")
@@ -187,7 +182,6 @@ local function CreateGUI()
                 while Settings.AutoRoll and wait(Settings.RollDelay) do
                     pcall(function()
                         SafeFire(Remote, "\002{")
-                        print("[Auto Roll] Roll fired")
                     end)
                 end
             end)
@@ -245,7 +239,7 @@ local function CreateGUI()
     end)
     y = y + 40
 
-    -- Luck Area
+    -- Luck Area with cooldown
     CreateToggle(scroll, "Collect Luck Areas (Stay)", y, function(state)
         Settings.AutoLuck = state
         if state then
@@ -262,15 +256,19 @@ local function CreateGUI()
                             local touchPart = targetArea:FindFirstChild("Touch")
                             if touchPart and touchPart:IsA("BasePart") then
                                 local distance = (hrp.Position - touchPart.Position).Magnitude
-                                if distance > 5 then
+                                local currentTime = tick()
+
+                                if distance > 5 and (currentTime - lastPotionUseTime) >= POTION_COOLDOWN then
                                     hrp.CFrame = touchPart.CFrame + Vector3.new(0, 2, 0)
-                                    print("[Luck Area] Teleported to " .. targetArea.Name)
+                                    SafeFire(Remote, "\v\vLuck Potion")
+                                    wait(0.15)
+                                    SafeFire(Remote, "\v\017Ultra Luck Potion")
+                                    lastPotionUseTime = currentTime
                                 end
                             else
                                 firetouchinterest(hrp, targetArea, 0)
                                 wait(0.2)
                                 firetouchinterest(hrp, targetArea, 1)
-                                print("[Luck Area] firetouchinterest on " .. targetArea.Name)
                             end
                         end
                     end)
@@ -296,7 +294,6 @@ local function CreateGUI()
                     while Settings[key] and wait(1) do
                         pcall(function()
                             SafeFire(Remote, data[2])
-                            print("[Buy] " .. data[1])
                         end)
                     end
                 end)
@@ -321,7 +318,6 @@ local function CreateGUI()
                     while Settings[key] and wait(data[3]) do
                         pcall(function()
                             SafeFire(Remote, data[2])
-                            print("[Use] " .. data[1])
                         end)
                     end
                 end)
@@ -355,7 +351,6 @@ local function CreateGUI()
             t.btn.Text = "ON"
             t.btn.BackgroundColor3 = Color3.fromRGB(0,180,0)
         end
-        print("[All] All features enabled")
     end)
 
     local disableAll = Instance.new("TextButton")
@@ -376,7 +371,6 @@ local function CreateGUI()
             t.btn.Text = "OFF"
             t.btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
         end
-        print("[All] All features disabled")
     end)
     y = y + 50
 
@@ -408,11 +402,10 @@ local function CreateGUI()
         end
     end)
 
-    print("✅ GUI loaded! Press G to hide/show.")
+    print("✅ Gender RNG Auto Farm loaded – GUI ready.")
 end
 
 -- ========== INIT ==========
--- Wait for character
 repeat wait() until player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-wait(1) -- give time
-pcall(CreateGUI) -- catch any errors
+wait(1)
+pcall(CreateGUI)
