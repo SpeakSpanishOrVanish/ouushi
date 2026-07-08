@@ -1,0 +1,418 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local Remote = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Packet"):WaitForChild("RemoteEvent")
+
+-- Settings
+local Settings = {
+    AutoRoll = false,
+    AutoLuck = false,
+    AutoBuyLuck = false,
+    AutoBuyUltra = false,
+    AutoBuyCash = false,
+    AutoBuySpeed = false,
+    AutoUseLuck = false,
+    AutoUseUltra = false,
+    AutoUseCash = false,
+    AutoUseSpeed = false,
+    RollDelay = 0.1,
+}
+
+-- Safe remote fire (with fallback)
+local function SafeFire(remote, data)
+    local success, err = pcall(function()
+        if type(data) == "string" then
+            -- Try buffer.fromstring; if fails, send string
+            local buf = buffer.fromstring(data)
+            remote:FireServer(buf)
+        else
+            remote:FireServer(data)
+        end
+    end)
+    if not success then
+        pcall(function()
+            remote:FireServer(data) -- fallback
+        end)
+    end
+end
+
+-- ========== GUI CREATION ==========
+local function CreateGUI()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "GenderRNG_AF"
+    gui.ResetOnSpawn = false
+    gui.Enabled = true   -- ✅ CORRECT property
+    gui.Parent = game:GetService("CoreGui")
+
+    -- Main frame
+    local main = Instance.new("Frame")
+    main.Size = UDim2.new(0, 400, 0, 450)
+    main.Position = UDim2.new(0.5, -200, 0.5, -225)
+    main.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    main.BorderSizePixel = 0
+    main.Parent = gui
+
+    -- Title bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    titleBar.Parent = main
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -80, 1, 0)
+    titleLabel.Position = UDim2.new(0, 5, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Gender RNG Auto Farm"
+    titleLabel.TextColor3 = Color3.new(1,1,1)
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextSize = 18
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+
+    -- Minimize button
+    local minBtn = Instance.new("TextButton")
+    minBtn.Size = UDim2.new(0, 30, 0, 30)
+    minBtn.Position = UDim2.new(1, -65, 0, 0)
+    minBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    minBtn.Text = "−"
+    minBtn.TextColor3 = Color3.new(1,1,1)
+    minBtn.Font = Enum.Font.SourceSansBold
+    minBtn.TextSize = 20
+    minBtn.Parent = titleBar
+
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -32, 0, 0)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.new(1,1,1)
+    closeBtn.Font = Enum.Font.SourceSansBold
+    closeBtn.TextSize = 16
+    closeBtn.Parent = titleBar
+    closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+    -- Scrolling frame
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, 0, 1, -30)
+    scroll.Position = UDim2.new(0, 0, 0, 30)
+    scroll.BackgroundTransparency = 1
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 750)
+    scroll.ScrollBarThickness = 6
+    scroll.Parent = main
+
+    local fullSize = UDim2.new(0, 400, 0, 450)
+    local minimizedSize = UDim2.new(0, 400, 0, 30)
+    local isMinimized = false
+
+    minBtn.MouseButton1Click:Connect(function()
+        isMinimized = not isMinimized
+        if isMinimized then
+            main.Size = minimizedSize
+            scroll.Visible = false
+            minBtn.Text = "□"
+        else
+            main.Size = fullSize
+            scroll.Visible = true
+            minBtn.Text = "−"
+        end
+    end)
+
+    -- Keybind: G toggles GUI Enabled
+    local keybindConnection
+    keybindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.G then
+            gui.Enabled = not gui.Enabled
+            print("[GUI] Toggled:", gui.Enabled)
+        end
+    end)
+
+    gui.AncestryChanged:Connect(function()
+        if not gui.Parent then
+            if keybindConnection then keybindConnection:Disconnect() end
+        end
+    end)
+
+    -- Helper: create toggle
+    local toggles = {}
+    local function CreateToggle(parent, labelText, yPos, callback)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -20, 0, 30)
+        frame.Position = UDim2.new(0, 10, 0, yPos)
+        frame.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+        frame.BorderSizePixel = 0
+        frame.Parent = parent
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.7, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = labelText
+        label.TextColor3 = Color3.new(1,1,1)
+        label.Font = Enum.Font.SourceSans
+        label.TextSize = 14
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 60, 0, 24)
+        btn.Position = UDim2.new(0.8, 0, 0.5, -12)
+        btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+        btn.Text = "OFF"
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 14
+        btn.Parent = frame
+
+        local state = false
+        btn.MouseButton1Click:Connect(function()
+            state = not state
+            btn.Text = state and "ON" or "OFF"
+            btn.BackgroundColor3 = state and Color3.fromRGB(0,180,0) or Color3.fromRGB(80,80,80)
+            callback(state)
+        end)
+        table.insert(toggles, {btn = btn, stateRef = state})
+        return btn
+    end
+
+    local y = 10
+
+    -- Auto Roll
+    CreateToggle(scroll, "Auto Roll", y, function(state)
+        Settings.AutoRoll = state
+        if state then
+            spawn(function()
+                while Settings.AutoRoll and wait(Settings.RollDelay) do
+                    pcall(function()
+                        SafeFire(Remote, "\002{")
+                        print("[Auto Roll] Roll fired")
+                    end)
+                end
+            end)
+        end
+    end)
+    y = y + 40
+
+    -- Delay slider
+    local delayFrame = Instance.new("Frame")
+    delayFrame.Size = UDim2.new(1, -20, 0, 30)
+    delayFrame.Position = UDim2.new(0, 10, 0, y)
+    delayFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    delayFrame.BorderSizePixel = 0
+    delayFrame.Parent = scroll
+
+    local delayLabel = Instance.new("TextLabel")
+    delayLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    delayLabel.BackgroundTransparency = 1
+    delayLabel.Text = "Delay: 100ms"
+    delayLabel.TextColor3 = Color3.new(1,1,1)
+    delayLabel.Font = Enum.Font.SourceSans
+    delayLabel.TextSize = 14
+    delayLabel.TextXAlignment = Enum.TextXAlignment.Left
+    delayLabel.Parent = delayFrame
+
+    local delayVal = 100
+    local minus = Instance.new("TextButton")
+    minus.Size = UDim2.new(0, 30, 0, 24)
+    minus.Position = UDim2.new(0.7, 0, 0.5, -12)
+    minus.BackgroundColor3 = Color3.fromRGB(60,60,80)
+    minus.Text = "-"
+    minus.TextColor3 = Color3.new(1,1,1)
+    minus.Font = Enum.Font.SourceSansBold
+    minus.TextSize = 18
+    minus.Parent = delayFrame
+    minus.MouseButton1Click:Connect(function()
+        delayVal = math.max(50, delayVal - 50)
+        delayLabel.Text = "Delay: " .. delayVal .. "ms"
+        Settings.RollDelay = delayVal / 1000
+    end)
+
+    local plus = Instance.new("TextButton")
+    plus.Size = UDim2.new(0, 30, 0, 24)
+    plus.Position = UDim2.new(0.8, 0, 0.5, -12)
+    plus.BackgroundColor3 = Color3.fromRGB(60,60,80)
+    plus.Text = "+"
+    plus.TextColor3 = Color3.new(1,1,1)
+    plus.Font = Enum.Font.SourceSansBold
+    plus.TextSize = 18
+    plus.Parent = delayFrame
+    plus.MouseButton1Click:Connect(function()
+        delayVal = math.min(1000, delayVal + 50)
+        delayLabel.Text = "Delay: " .. delayVal .. "ms"
+        Settings.RollDelay = delayVal / 1000
+    end)
+    y = y + 40
+
+    -- Luck Area
+    CreateToggle(scroll, "Collect Luck Areas (Stay)", y, function(state)
+        Settings.AutoLuck = state
+        if state then
+            spawn(function()
+                while Settings.AutoLuck and wait(1) do
+                    pcall(function()
+                        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+                            return
+                        end
+                        local hrp = player.Character.HumanoidRootPart
+
+                        local targetArea = workspace:FindFirstChild("5") or workspace:FindFirstChild("2")
+                        if targetArea then
+                            local touchPart = targetArea:FindFirstChild("Touch")
+                            if touchPart and touchPart:IsA("BasePart") then
+                                local distance = (hrp.Position - touchPart.Position).Magnitude
+                                if distance > 5 then
+                                    hrp.CFrame = touchPart.CFrame + Vector3.new(0, 2, 0)
+                                    print("[Luck Area] Teleported to " .. targetArea.Name)
+                                end
+                            else
+                                firetouchinterest(hrp, targetArea, 0)
+                                wait(0.2)
+                                firetouchinterest(hrp, targetArea, 1)
+                                print("[Luck Area] firetouchinterest on " .. targetArea.Name)
+                            end
+                        end
+                    end)
+                end
+            end)
+        end
+    end)
+    y = y + 40
+
+    -- Buy Potions
+    local buyData = {
+        {"Buy Luck Potion", "\n\vLuck Potion"},
+        {"Buy Ultra Luck", "\n\017Ultra Luck Potion"},
+        {"Buy Cash Potion", "\n\vCash Potion"},
+        {"Buy Roll Speed", "\n\017Roll Speed Potion\n\017Roll Speed Potion"},
+    }
+    for _, data in ipairs(buyData) do
+        local key = "AutoBuy" .. data[1]:gsub(" ", "")
+        CreateToggle(scroll, data[1], y, function(state)
+            Settings[key] = state
+            if state then
+                spawn(function()
+                    while Settings[key] and wait(1) do
+                        pcall(function()
+                            SafeFire(Remote, data[2])
+                            print("[Buy] " .. data[1])
+                        end)
+                    end
+                end)
+            end
+        end)
+        y = y + 40
+    end
+
+    -- Use Potions
+    local useData = {
+        {"Use Luck Potion (2x)", "\v\vLuck Potion", 5},
+        {"Use Ultra Luck (5x)", "\v\017Ultra Luck Potion", 15},
+        {"Use Cash Potion", "\v\vCash Potion", 10},
+        {"Use Roll Speed", "\v\017Roll Speed Potion", 10},
+    }
+    for _, data in ipairs(useData) do
+        local key = "AutoUse" .. data[1]:gsub(" ", ""):gsub("%(2x%)", ""):gsub("%(5x%)", "")
+        CreateToggle(scroll, data[1], y, function(state)
+            Settings[key] = state
+            if state then
+                spawn(function()
+                    while Settings[key] and wait(data[3]) do
+                        pcall(function()
+                            SafeFire(Remote, data[2])
+                            print("[Use] " .. data[1])
+                        end)
+                    end
+                end)
+            end
+        end)
+        y = y + 40
+    end
+
+    -- All-in-One
+    local allFrame = Instance.new("Frame")
+    allFrame.Size = UDim2.new(1, -20, 0, 40)
+    allFrame.Position = UDim2.new(0, 10, 0, y)
+    allFrame.BackgroundTransparency = 1
+    allFrame.Parent = scroll
+
+    local enableAll = Instance.new("TextButton")
+    enableAll.Size = UDim2.new(0.45, -5, 1, 0)
+    enableAll.Position = UDim2.new(0, 0, 0, 0)
+    enableAll.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    enableAll.Text = "Enable All"
+    enableAll.TextColor3 = Color3.new(1,1,1)
+    enableAll.Font = Enum.Font.SourceSansBold
+    enableAll.TextSize = 16
+    enableAll.Parent = allFrame
+    enableAll.MouseButton1Click:Connect(function()
+        for k, v in pairs(Settings) do
+            if type(v) == "boolean" then Settings[k] = true end
+        end
+        for _, t in ipairs(toggles) do
+            t.stateRef = true
+            t.btn.Text = "ON"
+            t.btn.BackgroundColor3 = Color3.fromRGB(0,180,0)
+        end
+        print("[All] All features enabled")
+    end)
+
+    local disableAll = Instance.new("TextButton")
+    disableAll.Size = UDim2.new(0.45, -5, 1, 0)
+    disableAll.Position = UDim2.new(0.55, 0, 0, 0)
+    disableAll.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+    disableAll.Text = "Disable All"
+    disableAll.TextColor3 = Color3.new(1,1,1)
+    disableAll.Font = Enum.Font.SourceSansBold
+    disableAll.TextSize = 16
+    disableAll.Parent = allFrame
+    disableAll.MouseButton1Click:Connect(function()
+        for k, v in pairs(Settings) do
+            if type(v) == "boolean" then Settings[k] = false end
+        end
+        for _, t in ipairs(toggles) do
+            t.stateRef = false
+            t.btn.Text = "OFF"
+            t.btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+        end
+        print("[All] All features disabled")
+    end)
+    y = y + 50
+
+    scroll.CanvasSize = UDim2.new(0, 0, 0, y + 20)
+
+    -- Draggable
+    local dragging, dragInput, dragStart, startPos
+    main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = main.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    main.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    print("✅ GUI loaded! Press G to hide/show.")
+end
+
+-- ========== INIT ==========
+-- Wait for character
+repeat wait() until player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+wait(1) -- give time
+pcall(CreateGUI) -- catch any errors
