@@ -1,15 +1,13 @@
---[[
-    Gender RNG Auto Farm – Teleport cooldown: 180s
-    5x area: each potion twice
-    2x area: each potion once
-]]
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local Remote = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Packet"):WaitForChild("RemoteEvent")
+
+local WindUI = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+))()
 
 local Settings = {
     AutoRoll = false,
@@ -23,10 +21,36 @@ local Settings = {
     AutoUseCash = false,
     AutoUseSpeed = false,
     RollDelay = 0.1,
+    AutoOpenEggs = false,
+    AutoLuckUseLuck = true,
+    AutoLuckUseUltra = true,
+    AutoLuckUseCash = true,
+    AutoLuckUseSpeed = true,
+    AutoLuckTimes = 2,
 }
 
 local lastTeleportTime = 0
-local TELEPORT_COOLDOWN = 180   -- 3 minutes
+local TELEPORT_COOLDOWN = 180
+
+local function BuildUseBuffer(byte2, potionName)
+    local bytes = {12, byte2}
+    for i = 1, #potionName do table.insert(bytes, string.byte(potionName, i)) end
+    local buf = buffer.create(#bytes)
+    for i = 1, #bytes do buffer.writeu8(buf, i - 1, bytes[i]) end
+    return buf
+end
+
+local function BuildBuyBuffer(byte2, potionName, repeatCount)
+    local bytes = {}
+    for r = 1, repeatCount do
+        table.insert(bytes, 11)
+        table.insert(bytes, byte2)
+        for i = 1, #potionName do table.insert(bytes, string.byte(potionName, i)) end
+    end
+    local buf = buffer.create(#bytes)
+    for i = 1, #bytes do buffer.writeu8(buf, i - 1, bytes[i]) end
+    return buf
+end
 
 local function SafeFire(remote, data)
     pcall(function()
@@ -39,215 +63,217 @@ local function SafeFire(remote, data)
     end)
 end
 
--- ========== GUI CREATION ==========
-local function CreateGUI()
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "GenderRNG_AF"
-    gui.ResetOnSpawn = false
-    gui.Enabled = true
-    gui.Parent = game:GetService("CoreGui")
+local avatarImage = Players:GetUserThumbnailAsync(
+    player.UserId,
+    Enum.ThumbnailType.HeadShot,
+    Enum.ThumbnailSize.Size150x150
+)
 
-    local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 400, 0, 450)
-    main.Position = UDim2.new(0.5, -200, 0.5, -225)
-    main.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    main.BorderSizePixel = 0
-    main.Parent = gui
+local Window = WindUI:CreateWindow({
+    Title  = "Gender RNG Auto Farm",
+    Icon   = avatarImage,
+    IconSize = 60,
+    Author = "FloxyCola",
+    Folder = "GenderRNG_AF",
+    Theme  = "Dark",
+    Size   = UDim2.fromOffset(580, 480),
+    MinSize = Vector2.new(560, 400),
+    Resizable = true,
+    SideBarWidth = 160,
 
-    local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 30)
-    titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-    titleBar.Parent = main
+    -- Built-in open button turned off — we're using our own custom floating
+    -- icon below instead, since it's guaranteed to work.
+    OpenButton = {
+        Enabled = false,
+    },
+})
 
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -80, 1, 0)
-    titleLabel.Position = UDim2.new(0, 5, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "Gender RNG Auto Farm"
-    titleLabel.TextColor3 = Color3.new(1,1,1)
-    titleLabel.Font = Enum.Font.SourceSansBold
-    titleLabel.TextSize = 18
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = titleBar
+local FloatGui = Instance.new("ScreenGui")
+FloatGui.Name = "GenderRNGFloatingIcon"
+FloatGui.ResetOnSpawn = false
+FloatGui.IgnoreGuiInset = true
+FloatGui.DisplayOrder = 999
+FloatGui.Parent = player:WaitForChild("PlayerGui")
 
-    local minBtn = Instance.new("TextButton")
-    minBtn.Size = UDim2.new(0, 30, 0, 30)
-    minBtn.Position = UDim2.new(1, -65, 0, 0)
-    minBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    minBtn.Text = "−"
-    minBtn.TextColor3 = Color3.new(1,1,1)
-    minBtn.Font = Enum.Font.SourceSansBold
-    minBtn.TextSize = 20
-    minBtn.Parent = titleBar
+local FloatButton = Instance.new("ImageButton")
+FloatButton.Name = "ReopenButton"
+FloatButton.Size = UDim2.fromOffset(52, 52)
+FloatButton.Position = UDim2.new(0, 20, 0.5, -26)
+FloatButton.BackgroundColor3 = Color3.fromHex("#101010")
+FloatButton.BackgroundTransparency = 0
+FloatButton.Image = avatarImage
+FloatButton.ScaleType = Enum.ScaleType.Crop
+FloatButton.Visible = false
+FloatButton.ZIndex = 1000
+FloatButton.Parent = FloatGui
 
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -32, 0, 0)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    closeBtn.Text = "X"
-    closeBtn.TextColor3 = Color3.new(1,1,1)
-    closeBtn.Font = Enum.Font.SourceSansBold
-    closeBtn.TextSize = 16
-    closeBtn.Parent = titleBar
-    closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+local FloatCorner = Instance.new("UICorner")
+FloatCorner.CornerRadius = UDim.new(1, 0)
+FloatCorner.Parent = FloatButton
 
-    local scroll = Instance.new("ScrollingFrame")
-    scroll.Size = UDim2.new(1, 0, 1, -30)
-    scroll.Position = UDim2.new(0, 0, 0, 30)
-    scroll.BackgroundTransparency = 1
-    scroll.CanvasSize = UDim2.new(0, 0, 0, 750)
-    scroll.ScrollBarThickness = 6
-    scroll.Parent = main
+local FloatStroke = Instance.new("UIStroke")
+FloatStroke.Thickness = 2
+FloatStroke.Color = Color3.fromHex("#30FF6A")
+FloatStroke.Parent = FloatButton
 
-    local fullSize = UDim2.new(0, 400, 0, 450)
-    local minimizedSize = UDim2.new(0, 400, 0, 30)
-    local isMinimized = false
 
-    minBtn.MouseButton1Click:Connect(function()
-        isMinimized = not isMinimized
-        if isMinimized then
-            main.Size = minimizedSize
-            scroll.Visible = false
-            minBtn.Text = "□"
-        else
-            main.Size = fullSize
-            scroll.Visible = true
-            minBtn.Text = "−"
-        end
-    end)
+local dragging, dragInput, dragStart, startPos
 
-    local keybindConnection
-    keybindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.G then
-            gui.Enabled = not gui.Enabled
-        end
-    end)
+FloatButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = FloatButton.Position
 
-    gui.AncestryChanged:Connect(function()
-        if not gui.Parent then
-            if keybindConnection then keybindConnection:Disconnect() end
-        end
-    end)
-
-    local toggles = {}
-    local function CreateToggle(parent, labelText, yPos, callback)
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -20, 0, 30)
-        frame.Position = UDim2.new(0, 10, 0, yPos)
-        frame.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-        frame.BorderSizePixel = 0
-        frame.Parent = parent
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.7, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = labelText
-        label.TextColor3 = Color3.new(1,1,1)
-        label.Font = Enum.Font.SourceSans
-        label.TextSize = 14
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = frame
-
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 60, 0, 24)
-        btn.Position = UDim2.new(0.8, 0, 0.5, -12)
-        btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
-        btn.Text = "OFF"
-        btn.TextColor3 = Color3.new(1,1,1)
-        btn.Font = Enum.Font.SourceSansBold
-        btn.TextSize = 14
-        btn.Parent = frame
-
-        local state = false
-        btn.MouseButton1Click:Connect(function()
-            state = not state
-            btn.Text = state and "ON" or "OFF"
-            btn.BackgroundColor3 = state and Color3.fromRGB(0,180,0) or Color3.fromRGB(80,80,80)
-            callback(state)
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
         end)
-        table.insert(toggles, {btn = btn, stateRef = state})
-        return btn
     end
+end)
 
-    local y = 10
+FloatButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
 
-    CreateToggle(scroll, "Auto Roll", y, function(state)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        FloatButton.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+
+FloatButton.MouseButton1Click:Connect(function()
+    Window:Open()
+end)
+
+
+Window:OnClose(function()
+    FloatButton.Visible = true
+end)
+
+Window:OnOpen(function()
+    FloatButton.Visible = false
+end)
+-----
+
+local GeneralTab = Window:Tab({ Title = "General", Icon = "sliders-horizontal" })
+
+GeneralTab:Toggle({
+    Title = "Auto Roll",
+    Desc = "Literally",
+    Flag = "AutoRoll",
+    Value = Settings.AutoRoll,
+    Callback = function(state)
         Settings.AutoRoll = state
         if state then
             spawn(function()
                 while Settings.AutoRoll and wait(Settings.RollDelay) do
-                    pcall(function()
-                        SafeFire(Remote, "\002{")
-                    end)
+                    pcall(function() SafeFire(Remote, "\002{") end)
                 end
             end)
         end
-    end)
-    y = y + 40
+    end,
+})
 
-    local delayFrame = Instance.new("Frame")
-    delayFrame.Size = UDim2.new(1, -20, 0, 30)
-    delayFrame.Position = UDim2.new(0, 10, 0, y)
-    delayFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-    delayFrame.BorderSizePixel = 0
-    delayFrame.Parent = scroll
+GeneralTab:Slider({
+    Title = "Roll Delay (ms)",
+    Desc = "Uh it might work",
+    IsTooltip = true,
+    IsTextbox = true,
+    Width = 200,
+    Step = 50,
+    Value = { Min = 50, Max = 1000, Default = 100 },
+    Callback = function(value)
+        Settings.RollDelay = value / 1000
+    end,
+})
 
-    local delayLabel = Instance.new("TextLabel")
-    delayLabel.Size = UDim2.new(0.5, 0, 1, 0)
-    delayLabel.BackgroundTransparency = 1
-    delayLabel.Text = "Delay: 100ms"
-    delayLabel.TextColor3 = Color3.new(1,1,1)
-    delayLabel.Font = Enum.Font.SourceSans
-    delayLabel.TextSize = 14
-    delayLabel.TextXAlignment = Enum.TextXAlignment.Left
-    delayLabel.Parent = delayFrame
+local BuyTab = Window:Tab({ Title = "Buy Potions", Icon = "shopping-bag" })
 
-    local delayVal = 100
-    local minus = Instance.new("TextButton")
-    minus.Size = UDim2.new(0, 30, 0, 24)
-    minus.Position = UDim2.new(0.7, 0, 0.5, -12)
-    minus.BackgroundColor3 = Color3.fromRGB(60,60,80)
-    minus.Text = "-"
-    minus.TextColor3 = Color3.new(1,1,1)
-    minus.Font = Enum.Font.SourceSansBold
-    minus.TextSize = 18
-    minus.Parent = delayFrame
-    minus.MouseButton1Click:Connect(function()
-        delayVal = math.max(50, delayVal - 50)
-        delayLabel.Text = "Delay: " .. delayVal .. "ms"
-        Settings.RollDelay = delayVal / 1000
-    end)
+local buyData = {
+    { "Buy Luck Potion",          11, "Luck Potion",         1 },
+    { "Buy Ultra Luck Potion",    17, "Ultra Luck Potion",   1 },
+    { "Buy Cash Potion",          11, "Cash Potion",         1 },
+    { "Buy Roll Speed Potion",    17, "Roll Speed Potion",   2 },
+}
 
-    local plus = Instance.new("TextButton")
-    plus.Size = UDim2.new(0, 30, 0, 24)
-    plus.Position = UDim2.new(0.8, 0, 0.5, -12)
-    plus.BackgroundColor3 = Color3.fromRGB(60,60,80)
-    plus.Text = "+"
-    plus.TextColor3 = Color3.new(1,1,1)
-    plus.Font = Enum.Font.SourceSansBold
-    plus.TextSize = 18
-    plus.Parent = delayFrame
-    plus.MouseButton1Click:Connect(function()
-        delayVal = math.min(1000, delayVal + 50)
-        delayLabel.Text = "Delay: " .. delayVal .. "ms"
-        Settings.RollDelay = delayVal / 1000
-    end)
-    y = y + 40
+for _, data in ipairs(buyData) do
+    local flag = "AutoBuy" .. data[1]:gsub(" ", "")
+    BuyTab:Toggle({
+        Title = data[1],
+        Flag = flag,
+        Value = Settings[flag],
+        Callback = function(state)
+            Settings[flag] = state
+            if state then
+                spawn(function()
+                    while Settings[flag] and wait(1) do
+                        pcall(function()
+                            SafeFire(Remote, BuildBuyBuffer(data[2], data[3], data[4]))
+                        end)
+                    end
+                end)
+            end
+        end,
+    })
+end
 
-    -- LUCK AREA with teleport cooldown and potion usage per area
-    CreateToggle(scroll, "Collect Luck Areas (Stay)", y, function(state)
+local UseTab = Window:Tab({ Title = "Use Potions", Icon = "flask-conical" })
+
+local useData = {
+    { "Use Luck Potion",              11, "Luck Potion",         0.1 },
+    { "Use Ultra Luck Potion",        17, "Ultra Luck Potion",   0.1 },
+    { "Use Cash Potion",              11, "Cash Potion",         0.1 },
+    { "Use Roll Speed Potion",        17, "Roll Speed Potion",   0.1 },
+}
+
+for _, data in ipairs(useData) do
+    local label = data[1]:gsub(" %(2x%)", ""):gsub(" %(5x%)", "")
+    local flag = "AutoUse" .. label:gsub(" ", "")
+    UseTab:Toggle({
+        Title = data[1],
+        Flag = flag,
+        Value = Settings[flag],
+        Callback = function(state)
+            Settings[flag] = state
+            if state then
+                spawn(function()
+                    while Settings[flag] and wait(data[4]) do
+                        pcall(function()
+                            SafeFire(Remote, BuildUseBuffer(data[2], data[3]))
+                        end)
+                    end
+                end)
+            end
+        end,
+    })
+end
+
+local LuckTab = Window:Tab({ Title = "Luck Zone", Icon = "map-pin" })
+
+LuckTab:Toggle({
+    Title = "Teleport To Luck Zones",
+    Desc = "Teleports to 10x/5x/2x luck zones everytime it spawns",
+    Flag = "AutoLuck",
+    Value = Settings.AutoLuck,
+    Callback = function(state)
         Settings.AutoLuck = state
         if state then
             spawn(function()
                 while Settings.AutoLuck and wait(1) do
                     pcall(function()
-                        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-                            return
-                        end
+                        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
                         local hrp = player.Character.HumanoidRootPart
 
-                        local targetArea = workspace:FindFirstChild("5") or workspace:FindFirstChild("2")
+                        local targetArea = workspace:FindFirstChild("10") or workspace:FindFirstChild("5") or workspace:FindFirstChild("2")
                         if targetArea then
                             local touchPart = targetArea:FindFirstChild("Touch")
                             if touchPart and touchPart:IsA("BasePart") then
@@ -255,33 +281,29 @@ local function CreateGUI()
                                 local currentTime = tick()
 
                                 if distance > 5 and (currentTime - lastTeleportTime) >= TELEPORT_COOLDOWN then
-                                    -- Teleport
                                     hrp.CFrame = touchPart.CFrame + Vector3.new(0, 2, 0)
 
-                                    -- Determine how many times to use each potion
-                                    local times = 1
-                                    if targetArea.Name == "5" then
-                                        times = 2
+                                    local times = Settings.AutoLuckTimes
+                                    if times > 0 then
+                                        local potionMap = {
+                                            { flag = "AutoLuckUseLuck",   byte2 = 11, name = "Luck Potion" },
+                                            { flag = "AutoLuckUseUltra",  byte2 = 17, name = "Ultra Luck Potion" },
+                                            { flag = "AutoLuckUseCash",   byte2 = 11, name = "Cash Potion" },
+                                            { flag = "AutoLuckUseSpeed",  byte2 = 17, name = "Roll Speed Potion" },
+                                        }
+                                        for _, p in ipairs(potionMap) do
+                                            if Settings[p.flag] then
+                                                for i = 1, times do
+                                                    SafeFire(Remote, BuildUseBuffer(p.byte2, p.name))
+                                                    wait(0.1)
+                                                end
+                                            end
+                                        end
                                     end
-                                    -- For area 2, times = 1
 
-                                    -- Use each potion the appropriate number of times
-                                    for i = 1, times do
-                                        SafeFire(Remote, "\v\vLuck Potion")          -- 2x luck
-                                        wait(0.1)
-                                        SafeFire(Remote, "\v\017Ultra Luck Potion")  -- 5x luck
-                                        wait(0.1)
-                                        SafeFire(Remote, "\v\vCash Potion")         -- cash
-                                        wait(0.1)
-                                        SafeFire(Remote, "\v\017Roll Speed Potion") -- roll speed
-                                        if i < times then wait(0.1) end
-                                    end
-
-                                    -- Update teleport cooldown (also acts as potion cooldown)
                                     lastTeleportTime = currentTime
                                 end
                             else
-                                -- fallback firetouchinterest
                                 firetouchinterest(hrp, targetArea, 0)
                                 wait(0.2)
                                 firetouchinterest(hrp, targetArea, 1)
@@ -291,137 +313,165 @@ local function CreateGUI()
                 end
             end)
         end
-    end)
-    y = y + 40
+    end,
+})
 
-    -- Buy Potions (unchanged)
-    local buyData = {
-        {"Buy Luck Potion", "\n\vLuck Potion"},
-        {"Buy Ultra Luck", "\n\017Ultra Luck Potion"},
-        {"Buy Cash Potion", "\n\vCash Potion"},
-        {"Buy Roll Speed", "\n\017Roll Speed Potion\n\017Roll Speed Potion"},
-    }
-    for _, data in ipairs(buyData) do
-        local key = "AutoBuy" .. data[1]:gsub(" ", "")
-        CreateToggle(scroll, data[1], y, function(state)
-            Settings[key] = state
-            if state then
-                spawn(function()
-                    while Settings[key] and wait(1) do
-                        pcall(function()
-                            SafeFire(Remote, data[2])
-                        end)
-                    end
-                end)
-            end
-        end)
-        y = y + 40
-    end
+LuckTab:Divider()
 
-    -- Use Potions (unchanged)
-    local useData = {
-        {"Use Luck Potion (2x)", "\v\vLuck Potion", 5},
-        {"Use Ultra Luck (5x)", "\v\017Ultra Luck Potion", 15},
-        {"Use Cash Potion", "\v\vCash Potion", 10},
-        {"Use Roll Speed", "\v\017Roll Speed Potion", 10},
-    }
-    for _, data in ipairs(useData) do
-        local key = "AutoUse" .. data[1]:gsub(" ", ""):gsub("%(2x%)", ""):gsub("%(5x%)", "")
-        CreateToggle(scroll, data[1], y, function(state)
-            Settings[key] = state
-            if state then
-                spawn(function()
-                    while Settings[key] and wait(data[3]) do
-                        pcall(function()
-                            SafeFire(Remote, data[2])
-                        end)
-                    end
-                end)
-            end
-        end)
-        y = y + 40
-    end
+LuckTab:Paragraph({
+    Title = "Potions to use during teleport",
+    Desc = "Enable the potions you want to auto‑use, and set how many times each.",
+})
 
-    -- All-in-One
-    local allFrame = Instance.new("Frame")
-    allFrame.Size = UDim2.new(1, -20, 0, 40)
-    allFrame.Position = UDim2.new(0, 10, 0, y)
-    allFrame.BackgroundTransparency = 1
-    allFrame.Parent = scroll
+LuckTab:Toggle({
+    Title = "Use Luck Potion",
+    Flag = "AutoLuckUseLuck",
+    Value = Settings.AutoLuckUseLuck,
+    Callback = function(state)
+        Settings.AutoLuckUseLuck = state
+    end,
+})
 
-    local enableAll = Instance.new("TextButton")
-    enableAll.Size = UDim2.new(0.45, -5, 1, 0)
-    enableAll.Position = UDim2.new(0, 0, 0, 0)
-    enableAll.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-    enableAll.Text = "Enable All"
-    enableAll.TextColor3 = Color3.new(1,1,1)
-    enableAll.Font = Enum.Font.SourceSansBold
-    enableAll.TextSize = 16
-    enableAll.Parent = allFrame
-    enableAll.MouseButton1Click:Connect(function()
-        for k, v in pairs(Settings) do
-            if type(v) == "boolean" then Settings[k] = true end
+LuckTab:Toggle({
+    Title = "Use Ultra Luck Potion",
+    Flag = "AutoLuckUseUltra",
+    Value = Settings.AutoLuckUseUltra,
+    Callback = function(state)
+        Settings.AutoLuckUseUltra = state
+    end,
+})
+
+LuckTab:Toggle({
+    Title = "Use Cash Potion",
+    Flag = "AutoLuckUseCash",
+    Value = Settings.AutoLuckUseCash,
+    Callback = function(state)
+        Settings.AutoLuckUseCash = state
+    end,
+})
+
+LuckTab:Toggle({
+    Title = "Use Roll Speed Potion",
+    Flag = "AutoLuckUseSpeed",
+    Value = Settings.AutoLuckUseSpeed,
+    Callback = function(state)
+        Settings.AutoLuckUseSpeed = state
+    end,
+})
+
+LuckTab:Input({
+    Title = "Times per potion",
+    Desc = "Number of times to use each enabled potion (type 0 to skip)",
+    Icon = "hash",
+    Placeholder = "Enter number...",
+    Value = tostring(Settings.AutoLuckTimes),
+    Flag = "AutoLuckTimes",
+    Callback = function(text)
+        local num = tonumber(text)
+        if num then
+            Settings.AutoLuckTimes = math.max(0, math.floor(num))
         end
-        for _, t in ipairs(toggles) do
-            t.stateRef = true
-            t.btn.Text = "ON"
-            t.btn.BackgroundColor3 = Color3.fromRGB(0,180,0)
-        end
-    end)
+    end,
+})
 
-    local disableAll = Instance.new("TextButton")
-    disableAll.Size = UDim2.new(0.45, -5, 1, 0)
-    disableAll.Position = UDim2.new(0.55, 0, 0, 0)
-    disableAll.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-    disableAll.Text = "Disable All"
-    disableAll.TextColor3 = Color3.new(1,1,1)
-    disableAll.Font = Enum.Font.SourceSansBold
-    disableAll.TextSize = 16
-    disableAll.Parent = allFrame
-    disableAll.MouseButton1Click:Connect(function()
-        for k, v in pairs(Settings) do
-            if type(v) == "boolean" then Settings[k] = false end
-        end
-        for _, t in ipairs(toggles) do
-            t.stateRef = false
-            t.btn.Text = "OFF"
-            t.btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
-        end
-    end)
-    y = y + 50
+local EggTab = Window:Tab({ Title = "Egg", Icon = "egg" })
 
-    scroll.CanvasSize = UDim2.new(0, 0, 0, y + 20)
+EggTab:Toggle({
+    Title = "Auto Open Rainbow Egg",
+    Desc = "Teleports to the Rainbow Egg And Opens It",
+    Flag = "AutoOpenEggs",
+    Value = Settings.AutoOpenEggs,
+    Callback = function(state)
+        Settings.AutoOpenEggs = state
+        if state then
+            spawn(function()
+                while Settings.AutoOpenEggs and wait(2) do
+                    pcall(function()
+                        local proxPart = workspace:FindFirstChild("Eggs") and workspace.Eggs:FindFirstChild("Rainbow Egg") and workspace.Eggs["Rainbow Egg"]:FindFirstChild("ProxPart")
+                        if not proxPart then return end
+                        local prompt = proxPart:FindFirstChild("ProximityPrompt")
+                        if not prompt or not prompt:IsA("ProximityPrompt") then return end
 
-    -- Draggable
-    local dragging, dragInput, dragStart, startPos
-    main.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = main.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
+                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            hrp.CFrame = CFrame.new(proxPart.Position + Vector3.new(0, 2, 0))
+                            wait(0.2)
+                        end
+                        fireproximityprompt(prompt, 1)
+                    end)
                 end
             end)
         end
-    end)
-    main.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
+    end,
+})
 
-    print("✅ Gender RNG Auto Farm loaded – GUI ready.")
-end
+local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 
--- ========== INIT ==========
+SettingsTab:Paragraph({
+    Title = "Configuration",
+    Desc = "Save or load your current toggle states.",
+})
+
+SettingsTab:Button({
+    Title = "Save Config",
+    Desc = "Save all current settings",
+    Icon = "save",
+    Callback = function()
+        local cfg = Window.ConfigManager:CreateConfig("default")
+        cfg:Save()
+        WindUI:Notify({ Title = "Saved!", Content = "Configuration saved.", Duration = 2 })
+    end,
+})
+
+SettingsTab:Button({
+    Title = "Load Config",
+    Desc = "Load previously saved settings",
+    Icon = "rotate-ccw",
+    Callback = function()
+        local cfg = Window.ConfigManager:CreateConfig("default")
+        cfg:Load()
+        WindUI:Notify({ Title = "Loaded!", Content = "Configuration loaded.", Duration = 2 })
+    end,
+})
+
+SettingsTab:Divider()
+
+SettingsTab:Paragraph({
+    Title = "Theme",
+    Desc = "Change the UI theme.",
+})
+
+local themeNames = {
+    "Dark", "Light", "Rose", "Plant", "Indigo", "Sky", "Violet", "Amber",
+    "Coral", "Lime", "Mint", "Lavender", "Graphite"
+}
+SettingsTab:Dropdown({
+    Title = "Select Theme",
+    Values = themeNames,
+    Value = "Dark",
+    Callback = function(selected)
+        WindUI:SetTheme(selected)
+    end,
+})
+
+local ContactTab = Window:Tab({ Title = "Contact", Icon = "message-circle" })
+
+ContactTab:Paragraph({
+    Title = "Bug Reports Or Suggestions",
+    Desc = "If you find any bugs or have any ideas that you want me to add in this script feel free to DM me. I'll try to respond as soon as possible.",
+    Image = "discord",
+    ImageSize = 48,
+    Buttons = {
+        {
+            Title = "Copy Discord Username",
+            Icon = "copy",
+            Callback = function()
+                setclipboard("floxy_wha")
+                WindUI:Notify({ Title = "Copied", Content = "Discord username copied to clipboard.", Duration = 2 })
+            end,
+        },
+    },
+})
+
 repeat wait() until player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 wait(1)
-pcall(CreateGUI)
