@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local Remote = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Packet"):WaitForChild("RemoteEvent")
@@ -11,73 +12,73 @@ local WindUI = loadstring(game:HttpGet(
 
 ----------------------------------------------------------------
 -- CUSTOM THEME PALETTES
--- WindUI themes take one solid color per role (not literal multi-color
--- gradients baked into every element) — these are cohesive palettes
--- picked to match each vibe.
+-- WindUI themes take one solid color per role (not a literal multi-color
+-- gradient baked into every element) — these are richer, more saturated
+-- palettes picked to match each vibe. "Bubblegum" is the blue/pink mix.
 ----------------------------------------------------------------
 WindUI:AddTheme({
-    Name = "Cotton Candy",
-    Accent = Color3.fromHex("#ff8fd8"),
-    Background = Color3.fromHex("#2b1f2b"),
+    Name = "Bubblegum",
+    Accent = Color3.fromHex("#c76bff"),
+    Background = Color3.fromHex("#1c1230"),
     Outline = Color3.fromHex("#ffffff"),
     Text = Color3.fromHex("#ffffff"),
-    Placeholder = Color3.fromHex("#c79ec7"),
-    Button = Color3.fromHex("#7a5a7a"),
-    Icon = Color3.fromHex("#ffd6f0"),
+    Placeholder = Color3.fromHex("#a48ad1"),
+    Button = Color3.fromHex("#4a3570"),
+    Icon = Color3.fromHex("#ff9fe0"),
 })
 
 WindUI:AddTheme({
     Name = "Crimson",
-    Accent = Color3.fromHex("#c21f3a"),
-    Background = Color3.fromHex("#150808"),
+    Accent = Color3.fromHex("#e0203f"),
+    Background = Color3.fromHex("#160707"),
     Outline = Color3.fromHex("#ffffff"),
     Text = Color3.fromHex("#ffffff"),
-    Placeholder = Color3.fromHex("#8a4a4a"),
-    Button = Color3.fromHex("#4d1f26"),
+    Placeholder = Color3.fromHex("#a85a5a"),
+    Button = Color3.fromHex("#521f27"),
     Icon = Color3.fromHex("#ff6b81"),
 })
 
 WindUI:AddTheme({
     Name = "Ocean",
-    Accent = Color3.fromHex("#22b8d8"),
-    Background = Color3.fromHex("#08161c"),
+    Accent = Color3.fromHex("#1fc9e8"),
+    Background = Color3.fromHex("#071820"),
     Outline = Color3.fromHex("#ffffff"),
     Text = Color3.fromHex("#ffffff"),
-    Placeholder = Color3.fromHex("#4a8a9a"),
-    Button = Color3.fromHex("#1f4d5c"),
-    Icon = Color3.fromHex("#7fe3ff"),
+    Placeholder = Color3.fromHex("#4a95a8"),
+    Button = Color3.fromHex("#1c5266"),
+    Icon = Color3.fromHex("#7fe9ff"),
 })
 
 WindUI:AddTheme({
     Name = "Emerald",
-    Accent = Color3.fromHex("#22c37a"),
-    Background = Color3.fromHex("#0a1a12"),
+    Accent = Color3.fromHex("#1fdb85"),
+    Background = Color3.fromHex("#081c13"),
     Outline = Color3.fromHex("#ffffff"),
     Text = Color3.fromHex("#ffffff"),
-    Placeholder = Color3.fromHex("#4a9a6a"),
-    Button = Color3.fromHex("#1f4d33"),
-    Icon = Color3.fromHex("#7fffb0"),
+    Placeholder = Color3.fromHex("#4aa876"),
+    Button = Color3.fromHex("#1c5238"),
+    Icon = Color3.fromHex("#7fffb8"),
 })
 
 WindUI:AddTheme({
     Name = "Sunset",
     Accent = Color3.fromHex("#ff7a3d"),
-    Background = Color3.fromHex("#1c0f08"),
+    Background = Color3.fromHex("#1f0f1c"),
     Outline = Color3.fromHex("#ffffff"),
     Text = Color3.fromHex("#ffffff"),
-    Placeholder = Color3.fromHex("#c78a4a"),
-    Button = Color3.fromHex("#5c331f"),
+    Placeholder = Color3.fromHex("#c78a7a"),
+    Button = Color3.fromHex("#5c2f4a"),
     Icon = Color3.fromHex("#ffb37f"),
 })
 
 WindUI:AddTheme({
     Name = "Midnight",
-    Accent = Color3.fromHex("#6a5cff"),
-    Background = Color3.fromHex("#0a0a1a"),
+    Accent = Color3.fromHex("#7c6bff"),
+    Background = Color3.fromHex("#08081a"),
     Outline = Color3.fromHex("#ffffff"),
     Text = Color3.fromHex("#ffffff"),
-    Placeholder = Color3.fromHex("#6a6a9a"),
-    Button = Color3.fromHex("#2b2b4d"),
+    Placeholder = Color3.fromHex("#6a6ab0"),
+    Button = Color3.fromHex("#28285c"),
     Icon = Color3.fromHex("#b0a8ff"),
 })
 ----------------------------------------------------------------
@@ -136,12 +137,19 @@ local function SafeFire(remote, data)
     end)
 end
 
--- Custom hub icon (2D asset, texture id)
-local HubIcon = "rbxassetid://18756790060"
+-- Main window icon: back to the live avatar of whoever is playing
+local avatarImage = Players:GetUserThumbnailAsync(
+    player.UserId,
+    Enum.ThumbnailType.HeadShot,
+    Enum.ThumbnailSize.Size150x150
+)
+
+-- Floating re-open icon: your custom 2D asset
+local FloatIcon = "rbxassetid://18756790060"
 
 local Window = WindUI:CreateWindow({
     Title  = "Gender RNG Auto Farm",
-    Icon   = HubIcon,
+    Icon   = avatarImage,
     IconSize = 60,
     Author = "FloxyCola",
     Folder = "GenderRNG_AF",
@@ -160,8 +168,9 @@ local Window = WindUI:CreateWindow({
 
 ----------------------------------------------------------------
 -- CUSTOM FLOATING RE-OPEN ICON
--- Shows a small draggable squircle button (custom 2D asset) whenever the
--- WindUI window is closed, and hides it again once reopened.
+-- Squircle button using your 2D asset, with an animated rotating
+-- blue -> pink gradient ring and a gentle pulse so it doesn't look flat.
+-- Shows whenever the WindUI window is closed, hides once reopened.
 ----------------------------------------------------------------
 local FloatGui = Instance.new("ScreenGui")
 FloatGui.Name = "GenderRNGFloatingIcon"
@@ -176,15 +185,48 @@ FloatButton.Size = UDim2.fromOffset(52, 52)
 FloatButton.Position = UDim2.new(0, 20, 0.5, -26)
 FloatButton.BackgroundColor3 = Color3.fromHex("#101010")
 FloatButton.BackgroundTransparency = 0
-FloatButton.Image = HubIcon
+FloatButton.Image = FloatIcon
 FloatButton.ScaleType = Enum.ScaleType.Crop
 FloatButton.Visible = false
 FloatButton.ZIndex = 1000
 FloatButton.Parent = FloatGui
 
 local FloatCorner = Instance.new("UICorner")
-FloatCorner.CornerRadius = UDim.new(0, 16) -- squircle: rounded square, not a full circle
+FloatCorner.CornerRadius = UDim.new(0, 16) -- squircle
 FloatCorner.Parent = FloatButton
+
+local FloatStroke = Instance.new("UIStroke")
+FloatStroke.Thickness = 3
+FloatStroke.Parent = FloatButton
+
+local FloatStrokeGradient = Instance.new("UIGradient")
+FloatStrokeGradient.Color = ColorSequence.new(
+    Color3.fromHex("#6bc7ff"), -- blue
+    Color3.fromHex("#ff6bc7")  -- pink
+)
+FloatStrokeGradient.Parent = FloatStroke
+
+-- Slowly rotate the ring's gradient for a subtle animated glow
+task.spawn(function()
+    while FloatButton.Parent do
+        FloatStrokeGradient.Rotation = (FloatStrokeGradient.Rotation + 2) % 360
+        task.wait(0.05)
+    end
+end)
+
+-- Gentle breathing pulse while visible, to draw the eye
+task.spawn(function()
+    while FloatButton.Parent do
+        if FloatButton.Visible then
+            TweenService:Create(FloatButton, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Size = UDim2.fromOffset(57, 57) }):Play()
+            task.wait(1)
+            TweenService:Create(FloatButton, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Size = UDim2.fromOffset(52, 52) }):Play()
+            task.wait(1)
+        else
+            task.wait(0.5)
+        end
+    end
+end)
 
 -- Dragging
 local dragging, dragInput, dragStart, startPos
@@ -514,7 +556,7 @@ SettingsTab:Paragraph({
 local themeNames = {
     "Dark", "Light", "Rose", "Plant", "Indigo", "Sky", "Violet", "Amber",
     "Coral", "Lime", "Mint", "Lavender", "Graphite",
-    "Cotton Candy", "Crimson", "Ocean", "Emerald", "Sunset", "Midnight",
+    "Bubblegum", "Crimson", "Ocean", "Emerald", "Sunset", "Midnight",
 }
 SettingsTab:Dropdown({
     Title = "Select Theme",
@@ -529,43 +571,34 @@ SettingsTab:Divider()
 
 SettingsTab:Paragraph({
     Title = "Background",
-    Desc = "Paste a Roblox image asset id to use as a custom background. The top bar (title, name, icon) should stay in your theme color regardless of the image.",
+    Desc = "Pick one of your preset background images.",
 })
 
-local backgroundAssetId = ""
+-- ⚠️ PLACEHOLDER IDS — send me your 7 real asset ids and I'll fill these in.
+local BackgroundPresets = {
+    { Name = "None (Default)", Id = "" },
+    { Name = "Background 1",   Id = "rbxassetid://75930771934994" },
+    { Name = "Background 2",   Id = "rbxassetid://17735493453" },
+    { Name = "Background 3",   Id = "rbxassetid://114935608170849" },
+    { Name = "Background 4",   Id = "rbxassetid://91330070691322" },
+    { Name = "Background 5",   Id = "rbxassetid://18384674195" },
+    { Name = "Background 6",   Id = "rbxassetid://18756790089" },
+    { Name = "Background 7",   Id = "rbxassetid://139560886954495" },
+}
 
-SettingsTab:Input({
-    Title = "Background Image Asset Id",
-    Desc = "e.g. 123456789 or rbxassetid://123456789",
-    Placeholder = "Enter asset id...",
-    Callback = function(text)
-        backgroundAssetId = text
-    end,
-})
+local BackgroundLookup = {}
+local backgroundNames = {}
+for _, entry in ipairs(BackgroundPresets) do
+    BackgroundLookup[entry.Name] = entry.Id
+    table.insert(backgroundNames, entry.Name)
+end
 
-SettingsTab:Button({
-    Title = "Apply Background Image",
-    Icon = "image",
-    Callback = function()
-        if backgroundAssetId == "" then
-            WindUI:Notify({ Title = "No Asset Id", Content = "Type an asset id first.", Duration = 3 })
-            return
-        end
-        local id = backgroundAssetId
-        if not id:match("^rbxassetid://") then
-            id = "rbxassetid://" .. id
-        end
-        Window:SetBackgroundImage(id)
-        WindUI:Notify({ Title = "Background Updated", Content = "Custom background image applied.", Duration = 2 })
-    end,
-})
-
-SettingsTab:Button({
-    Title = "Clear Background",
-    Icon = "x",
-    Callback = function()
-        Window:SetBackgroundImage("")
-        WindUI:Notify({ Title = "Background Cleared", Content = "Reverted to the default theme background.", Duration = 2 })
+SettingsTab:Dropdown({
+    Title = "Select Background",
+    Values = backgroundNames,
+    Value = "None (Default)",
+    Callback = function(selected)
+        Window:SetBackgroundImage(BackgroundLookup[selected])
     end,
 })
 
