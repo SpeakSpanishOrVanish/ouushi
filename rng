@@ -183,9 +183,10 @@ local FloatButton = Instance.new("ImageButton")
 FloatButton.Name = "ReopenButton"
 FloatButton.Size = UDim2.fromOffset(52, 52)
 FloatButton.Position = UDim2.new(0, 20, 0.5, -26)
-FloatButton.BackgroundColor3 = Color3.fromHex("#101010")
+FloatButton.BackgroundColor3 = Color3.fromHex("#ffffff") -- bright backing instead of dark
 FloatButton.BackgroundTransparency = 0
 FloatButton.Image = FloatIcon
+FloatButton.ImageColor3 = Color3.fromHex("#ffffff")
 FloatButton.ScaleType = Enum.ScaleType.Crop
 FloatButton.Visible = false
 FloatButton.ZIndex = 1000
@@ -196,37 +197,15 @@ FloatCorner.CornerRadius = UDim.new(0, 16) -- squircle
 FloatCorner.Parent = FloatButton
 
 local FloatStroke = Instance.new("UIStroke")
-FloatStroke.Thickness = 3
+FloatStroke.Thickness = 1 -- thin, static (no animation)
 FloatStroke.Parent = FloatButton
 
 local FloatStrokeGradient = Instance.new("UIGradient")
 FloatStrokeGradient.Color = ColorSequence.new(
-    Color3.fromHex("#6bc7ff"), -- blue
-    Color3.fromHex("#ff6bc7")  -- pink
+    Color3.fromHex("#9fe0ff"), -- bright blue
+    Color3.fromHex("#ff9fe0")  -- bright pink
 )
 FloatStrokeGradient.Parent = FloatStroke
-
--- Slowly rotate the ring's gradient for a subtle animated glow
-task.spawn(function()
-    while FloatButton.Parent do
-        FloatStrokeGradient.Rotation = (FloatStrokeGradient.Rotation + 2) % 360
-        task.wait(0.05)
-    end
-end)
-
--- Gentle breathing pulse while visible, to draw the eye
-task.spawn(function()
-    while FloatButton.Parent do
-        if FloatButton.Visible then
-            TweenService:Create(FloatButton, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Size = UDim2.fromOffset(57, 57) }):Play()
-            task.wait(1)
-            TweenService:Create(FloatButton, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Size = UDim2.fromOffset(52, 52) }):Play()
-            task.wait(1)
-        else
-            task.wait(0.5)
-        end
-    end
-end)
 
 -- Dragging
 local dragging, dragInput, dragStart, startPos
@@ -274,6 +253,45 @@ end)
 Window:OnOpen(function()
     FloatButton.Visible = false
 end)
+----------------------------------------------------------------
+
+----------------------------------------------------------------
+-- CUSTOM BACKGROUND SYSTEM
+-- A self-built full-screen wallpaper, rendered BEHIND the WindUI window
+-- (very low DisplayOrder). This does not depend on WindUI's own
+-- background-image function, so it's guaranteed to actually show up.
+-- We also try Window:SetTransparency(true) as a bonus so the window
+-- itself becomes see-through and the wallpaper shows through it too —
+-- wrapped in pcall so it can't break anything if that method doesn't
+-- behave the way I expect.
+----------------------------------------------------------------
+local WallpaperGui = Instance.new("ScreenGui")
+WallpaperGui.Name = "GenderRNGWallpaper"
+WallpaperGui.ResetOnSpawn = false
+WallpaperGui.IgnoreGuiInset = true
+WallpaperGui.DisplayOrder = -100 -- render behind everything, including the hub window
+WallpaperGui.Parent = player:WaitForChild("PlayerGui")
+
+local Wallpaper = Instance.new("ImageLabel")
+Wallpaper.Name = "Wallpaper"
+Wallpaper.Size = UDim2.fromScale(1, 1)
+Wallpaper.Position = UDim2.fromScale(0, 0)
+Wallpaper.BackgroundTransparency = 1
+Wallpaper.ScaleType = Enum.ScaleType.Crop
+Wallpaper.Image = ""
+Wallpaper.Visible = false
+Wallpaper.Parent = WallpaperGui
+
+local function ApplyWallpaper(id)
+    if id == "" then
+        Wallpaper.Visible = false
+        pcall(function() Window:SetTransparency(false) end)
+    else
+        Wallpaper.Image = id
+        Wallpaper.Visible = true
+        pcall(function() Window:SetTransparency(true) end)
+    end
+end
 ----------------------------------------------------------------
 
 local GeneralTab = Window:Tab({ Title = "General", Icon = "sliders-horizontal" })
@@ -574,7 +592,6 @@ SettingsTab:Paragraph({
     Desc = "Pick one of your preset background images.",
 })
 
--- ⚠️ PLACEHOLDER IDS — send me your 7 real asset ids and I'll fill these in.
 local BackgroundPresets = {
     { Name = "None (Default)", Id = "" },
     { Name = "Background 1",   Id = "rbxassetid://75930771934994" },
@@ -598,7 +615,7 @@ SettingsTab:Dropdown({
     Values = backgroundNames,
     Value = "None (Default)",
     Callback = function(selected)
-        Window:SetBackgroundImage(BackgroundLookup[selected])
+        ApplyWallpaper(BackgroundLookup[selected])
     end,
 })
 
