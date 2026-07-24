@@ -12,9 +12,6 @@ local WindUI = loadstring(game:HttpGet(
 
 ----------------------------------------------------------------
 -- CUSTOM THEME PALETTES
--- WindUI themes take one solid color per role (not a literal multi-color
--- gradient baked into every element) — these are richer, more saturated
--- palettes picked to match each vibe. "Bubblegum" is the blue/pink mix.
 ----------------------------------------------------------------
 WindUI:AddTheme({
     Name = "Bubblegum",
@@ -126,6 +123,14 @@ local function BuildBuyBuffer(byte2, potionName, repeatCount)
     return buf
 end
 
+-- NEW: Build roll buffer {2, 0}
+local function BuildRollBuffer()
+    local bytes = {2, 0}
+    local buf = buffer.create(#bytes)
+    for i = 1, #bytes do buffer.writeu8(buf, i - 1, bytes[i]) end
+    return buf
+end
+
 local function SafeFire(remote, data)
     pcall(function()
         if type(data) == "string" then
@@ -137,7 +142,7 @@ local function SafeFire(remote, data)
     end)
 end
 
--- Main window icon: back to the live avatar of whoever is playing
+-- Main window icon: live avatar
 local avatarImage = Players:GetUserThumbnailAsync(
     player.UserId,
     Enum.ThumbnailType.HeadShot,
@@ -159,8 +164,6 @@ local Window = WindUI:CreateWindow({
     Resizable = true,
     SideBarWidth = 160,
 
-    -- Built-in open button turned off — using our own custom floating
-    -- icon below instead, since it's guaranteed to work.
     OpenButton = {
         Enabled = false,
     },
@@ -168,9 +171,6 @@ local Window = WindUI:CreateWindow({
 
 ----------------------------------------------------------------
 -- CUSTOM FLOATING RE-OPEN ICON
--- Squircle button using your 2D asset, with an animated rotating
--- blue -> pink gradient ring and a gentle pulse so it doesn't look flat.
--- Shows whenever the WindUI window is closed, hides once reopened.
 ----------------------------------------------------------------
 local FloatGui = Instance.new("ScreenGui")
 FloatGui.Name = "GenderRNGFloatingIcon"
@@ -183,7 +183,7 @@ local FloatButton = Instance.new("ImageButton")
 FloatButton.Name = "ReopenButton"
 FloatButton.Size = UDim2.fromOffset(52, 52)
 FloatButton.Position = UDim2.new(0, 20, 0.5, -26)
-FloatButton.BackgroundColor3 = Color3.fromHex("#ffffff") -- bright backing instead of dark
+FloatButton.BackgroundColor3 = Color3.fromHex("#ffffff")
 FloatButton.BackgroundTransparency = 0
 FloatButton.Image = FloatIcon
 FloatButton.ImageColor3 = Color3.fromHex("#ffffff")
@@ -193,17 +193,17 @@ FloatButton.ZIndex = 1000
 FloatButton.Parent = FloatGui
 
 local FloatCorner = Instance.new("UICorner")
-FloatCorner.CornerRadius = UDim.new(0, 16) -- squircle
+FloatCorner.CornerRadius = UDim.new(0, 16)
 FloatCorner.Parent = FloatButton
 
 local FloatStroke = Instance.new("UIStroke")
-FloatStroke.Thickness = 1 -- thin, static (no animation)
+FloatStroke.Thickness = 1
 FloatStroke.Parent = FloatButton
 
 local FloatStrokeGradient = Instance.new("UIGradient")
 FloatStrokeGradient.Color = ColorSequence.new(
-    Color3.fromHex("#9fe0ff"), -- bright blue
-    Color3.fromHex("#ff9fe0")  -- bright pink
+    Color3.fromHex("#9fe0ff"),
+    Color3.fromHex("#ff9fe0")
 )
 FloatStrokeGradient.Parent = FloatStroke
 
@@ -215,7 +215,6 @@ FloatButton.InputBegan:Connect(function(input)
         dragging = true
         dragStart = input.Position
         startPos = FloatButton.Position
-
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
@@ -240,12 +239,10 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Click to reopen
 FloatButton.MouseButton1Click:Connect(function()
     Window:Open()
 end)
 
--- Hook into WindUI's open/close triggers
 Window:OnClose(function()
     FloatButton.Visible = true
 end)
@@ -257,19 +254,12 @@ end)
 
 ----------------------------------------------------------------
 -- CUSTOM BACKGROUND SYSTEM
--- A self-built full-screen wallpaper, rendered BEHIND the WindUI window
--- (very low DisplayOrder). This does not depend on WindUI's own
--- background-image function, so it's guaranteed to actually show up.
--- We also try Window:SetTransparency(true) as a bonus so the window
--- itself becomes see-through and the wallpaper shows through it too —
--- wrapped in pcall so it can't break anything if that method doesn't
--- behave the way I expect.
 ----------------------------------------------------------------
 local WallpaperGui = Instance.new("ScreenGui")
 WallpaperGui.Name = "GenderRNGWallpaper"
 WallpaperGui.ResetOnSpawn = false
 WallpaperGui.IgnoreGuiInset = true
-WallpaperGui.DisplayOrder = -100 -- render behind everything, including the hub window
+WallpaperGui.DisplayOrder = -100
 WallpaperGui.Parent = player:WaitForChild("PlayerGui")
 
 local Wallpaper = Instance.new("ImageLabel")
@@ -306,7 +296,7 @@ GeneralTab:Toggle({
         if state then
             spawn(function()
                 while Settings.AutoRoll and wait(Settings.RollDelay) do
-                    pcall(function() SafeFire(Remote, "\002{") end)
+                    pcall(function() SafeFire(Remote, BuildRollBuffer()) end)
                 end
             end)
         end
