@@ -9,6 +9,79 @@ local WindUI = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
 ))()
 
+----------------------------------------------------------------
+-- CUSTOM THEME PALETTES
+-- WindUI themes take one solid color per role (not literal multi-color
+-- gradients baked into every element) — these are cohesive palettes
+-- picked to match each vibe.
+----------------------------------------------------------------
+WindUI:AddTheme({
+    Name = "Cotton Candy",
+    Accent = Color3.fromHex("#ff8fd8"),
+    Background = Color3.fromHex("#2b1f2b"),
+    Outline = Color3.fromHex("#ffffff"),
+    Text = Color3.fromHex("#ffffff"),
+    Placeholder = Color3.fromHex("#c79ec7"),
+    Button = Color3.fromHex("#7a5a7a"),
+    Icon = Color3.fromHex("#ffd6f0"),
+})
+
+WindUI:AddTheme({
+    Name = "Crimson",
+    Accent = Color3.fromHex("#c21f3a"),
+    Background = Color3.fromHex("#150808"),
+    Outline = Color3.fromHex("#ffffff"),
+    Text = Color3.fromHex("#ffffff"),
+    Placeholder = Color3.fromHex("#8a4a4a"),
+    Button = Color3.fromHex("#4d1f26"),
+    Icon = Color3.fromHex("#ff6b81"),
+})
+
+WindUI:AddTheme({
+    Name = "Ocean",
+    Accent = Color3.fromHex("#22b8d8"),
+    Background = Color3.fromHex("#08161c"),
+    Outline = Color3.fromHex("#ffffff"),
+    Text = Color3.fromHex("#ffffff"),
+    Placeholder = Color3.fromHex("#4a8a9a"),
+    Button = Color3.fromHex("#1f4d5c"),
+    Icon = Color3.fromHex("#7fe3ff"),
+})
+
+WindUI:AddTheme({
+    Name = "Emerald",
+    Accent = Color3.fromHex("#22c37a"),
+    Background = Color3.fromHex("#0a1a12"),
+    Outline = Color3.fromHex("#ffffff"),
+    Text = Color3.fromHex("#ffffff"),
+    Placeholder = Color3.fromHex("#4a9a6a"),
+    Button = Color3.fromHex("#1f4d33"),
+    Icon = Color3.fromHex("#7fffb0"),
+})
+
+WindUI:AddTheme({
+    Name = "Sunset",
+    Accent = Color3.fromHex("#ff7a3d"),
+    Background = Color3.fromHex("#1c0f08"),
+    Outline = Color3.fromHex("#ffffff"),
+    Text = Color3.fromHex("#ffffff"),
+    Placeholder = Color3.fromHex("#c78a4a"),
+    Button = Color3.fromHex("#5c331f"),
+    Icon = Color3.fromHex("#ffb37f"),
+})
+
+WindUI:AddTheme({
+    Name = "Midnight",
+    Accent = Color3.fromHex("#6a5cff"),
+    Background = Color3.fromHex("#0a0a1a"),
+    Outline = Color3.fromHex("#ffffff"),
+    Text = Color3.fromHex("#ffffff"),
+    Placeholder = Color3.fromHex("#6a6a9a"),
+    Button = Color3.fromHex("#2b2b4d"),
+    Icon = Color3.fromHex("#b0a8ff"),
+})
+----------------------------------------------------------------
+
 local Settings = {
     AutoRoll = false,
     AutoLuck = false,
@@ -63,15 +136,12 @@ local function SafeFire(remote, data)
     end)
 end
 
-local avatarImage = Players:GetUserThumbnailAsync(
-    player.UserId,
-    Enum.ThumbnailType.HeadShot,
-    Enum.ThumbnailSize.Size150x150
-)
+-- Custom hub icon (2D asset, texture id)
+local HubIcon = "rbxassetid://18756790060"
 
 local Window = WindUI:CreateWindow({
     Title  = "Gender RNG Auto Farm",
-    Icon   = avatarImage,
+    Icon   = HubIcon,
     IconSize = 60,
     Author = "FloxyCola",
     Folder = "GenderRNG_AF",
@@ -81,13 +151,18 @@ local Window = WindUI:CreateWindow({
     Resizable = true,
     SideBarWidth = 160,
 
-    -- Built-in open button turned off — we're using our own custom floating
+    -- Built-in open button turned off — using our own custom floating
     -- icon below instead, since it's guaranteed to work.
     OpenButton = {
         Enabled = false,
     },
 })
 
+----------------------------------------------------------------
+-- CUSTOM FLOATING RE-OPEN ICON
+-- Shows a small draggable squircle button (custom 2D asset) whenever the
+-- WindUI window is closed, and hides it again once reopened.
+----------------------------------------------------------------
 local FloatGui = Instance.new("ScreenGui")
 FloatGui.Name = "GenderRNGFloatingIcon"
 FloatGui.ResetOnSpawn = false
@@ -101,22 +176,17 @@ FloatButton.Size = UDim2.fromOffset(52, 52)
 FloatButton.Position = UDim2.new(0, 20, 0.5, -26)
 FloatButton.BackgroundColor3 = Color3.fromHex("#101010")
 FloatButton.BackgroundTransparency = 0
-FloatButton.Image = avatarImage
+FloatButton.Image = HubIcon
 FloatButton.ScaleType = Enum.ScaleType.Crop
 FloatButton.Visible = false
 FloatButton.ZIndex = 1000
 FloatButton.Parent = FloatGui
 
 local FloatCorner = Instance.new("UICorner")
-FloatCorner.CornerRadius = UDim.new(1, 0)
+FloatCorner.CornerRadius = UDim.new(0, 16) -- squircle: rounded square, not a full circle
 FloatCorner.Parent = FloatButton
 
-local FloatStroke = Instance.new("UIStroke")
-FloatStroke.Thickness = 2
-FloatStroke.Color = Color3.fromHex("#30FF6A")
-FloatStroke.Parent = FloatButton
-
-
+-- Dragging
 local dragging, dragInput, dragStart, startPos
 
 FloatButton.InputBegan:Connect(function(input)
@@ -149,12 +219,12 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-
+-- Click to reopen
 FloatButton.MouseButton1Click:Connect(function()
     Window:Open()
 end)
 
-
+-- Hook into WindUI's open/close triggers
 Window:OnClose(function()
     FloatButton.Visible = true
 end)
@@ -162,7 +232,7 @@ end)
 Window:OnOpen(function()
     FloatButton.Visible = false
 end)
------
+----------------------------------------------------------------
 
 local GeneralTab = Window:Tab({ Title = "General", Icon = "sliders-horizontal" })
 
@@ -443,7 +513,8 @@ SettingsTab:Paragraph({
 
 local themeNames = {
     "Dark", "Light", "Rose", "Plant", "Indigo", "Sky", "Violet", "Amber",
-    "Coral", "Lime", "Mint", "Lavender", "Graphite"
+    "Coral", "Lime", "Mint", "Lavender", "Graphite",
+    "Cotton Candy", "Crimson", "Ocean", "Emerald", "Sunset", "Midnight",
 }
 SettingsTab:Dropdown({
     Title = "Select Theme",
@@ -451,6 +522,50 @@ SettingsTab:Dropdown({
     Value = "Dark",
     Callback = function(selected)
         WindUI:SetTheme(selected)
+    end,
+})
+
+SettingsTab:Divider()
+
+SettingsTab:Paragraph({
+    Title = "Background",
+    Desc = "Paste a Roblox image asset id to use as a custom background. The top bar (title, name, icon) should stay in your theme color regardless of the image.",
+})
+
+local backgroundAssetId = ""
+
+SettingsTab:Input({
+    Title = "Background Image Asset Id",
+    Desc = "e.g. 123456789 or rbxassetid://123456789",
+    Placeholder = "Enter asset id...",
+    Callback = function(text)
+        backgroundAssetId = text
+    end,
+})
+
+SettingsTab:Button({
+    Title = "Apply Background Image",
+    Icon = "image",
+    Callback = function()
+        if backgroundAssetId == "" then
+            WindUI:Notify({ Title = "No Asset Id", Content = "Type an asset id first.", Duration = 3 })
+            return
+        end
+        local id = backgroundAssetId
+        if not id:match("^rbxassetid://") then
+            id = "rbxassetid://" .. id
+        end
+        Window:SetBackgroundImage(id)
+        WindUI:Notify({ Title = "Background Updated", Content = "Custom background image applied.", Duration = 2 })
+    end,
+})
+
+SettingsTab:Button({
+    Title = "Clear Background",
+    Icon = "x",
+    Callback = function()
+        Window:SetBackgroundImage("")
+        WindUI:Notify({ Title = "Background Cleared", Content = "Reverted to the default theme background.", Duration = 2 })
     end,
 })
 
